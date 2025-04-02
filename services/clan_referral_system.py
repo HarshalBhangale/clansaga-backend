@@ -4,7 +4,7 @@ from pydapper import connect
 from database.connection_string import connection_string
 from database.database_queries import store_referral_code, inactivate_referral_token, delete_referral_token
 from datetime import datetime
-from referral_system import expire_referral_code 
+from services.referral_system import expire_referral_code
 stale_time = 60 * 60 * 24 * 7  # Increase stale time to 7 days for clan invites
 
 

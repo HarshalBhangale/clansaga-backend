@@ -3,16 +3,20 @@ from datetime import datetime
 from models.user_models import Clan, ClanCreation, JoinClan
 from database.database_queries import (
     user_exists, 
-    fetch_user_by_email, 
+    fetch_user_by_email
+)
+from database.clan_database_queries import (
     is_user_in_clan, 
     insert_clan, 
     get_clan_by_id,
     join_clan_by_id,
     get_available_clans,
-    get_user_clan
+    get_user_clan,
+    get_clan_id_by_invite_code
 )
-from services.referral_system import generate_clan_invite_code, is_active_referral_code
-from database.clan_database_queries import get_clan_id_by_invite_code
+from services.referral_system import is_active_referral_code
+from services.clan_referral_system import generate_clan_invite_code
+from services.referral_system import expire_referral_code
 router = APIRouter()
 
 
