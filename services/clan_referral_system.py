@@ -19,16 +19,23 @@ def generate_clan_invite_code(clan_id: int) -> str:
 def store_clan_invite_code(code: str, clan_id: int):
     """Store an invite code for a clan in the database"""
     with connect(connection_string) as commands:
+        # First get the leader_id
+        leader_id = commands.query_single(
+            "SELECT clan_leader_id FROM Clans WHERE clan_id = ?clan_id?",
+            param={"clan_id": clan_id}
+        )["clan_leader_id"]
+        
+        # Then insert the referral code
         commands.execute(
             """
             INSERT INTO Referrals (referral_code, created_at, is_active, user_id, clan_id)
-            VALUES (?referral_code?, ?created_at?, ?is_active?, 
-                   (SELECT clan_leader_id FROM Clans WHERE clan_id = ?clan_id?), ?clan_id?)
+            VALUES (?referral_code?, ?created_at?, ?is_active?, ?user_id?, ?clan_id?)
             """,
             param={
                 "referral_code": code,
                 "created_at": datetime.now(),
                 "is_active": True,
+                "user_id": leader_id,
                 "clan_id": clan_id
             }
         )

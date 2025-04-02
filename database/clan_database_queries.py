@@ -10,7 +10,8 @@ def is_user_in_clan(user_id: int) -> bool:
             "SELECT clan_id FROM Users WHERE user_id = ?user_id?",
             param={"user_id": user_id}
         )
-        return result["clan_id"] is not None
+        # Check if result exists and clan_id is not None
+        return result and result.get("clan_id") is not None
 
 
 def insert_clan(clan: Clan) -> int:
@@ -64,6 +65,8 @@ def get_clan_id_by_invite_code(invite_code: str) -> int:
             "SELECT clan_id FROM Referrals WHERE referral_code = ?referral_code? AND is_active = TRUE",
             param={"referral_code": invite_code}
         )
+        if not result or result.get("clan_id") is None:
+            raise ValueError(f"No active clan found for invite code: {invite_code}")
         return result["clan_id"]
 
 
