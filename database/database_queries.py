@@ -44,14 +44,23 @@ def fetch_referral_code(wallet_address: str) -> str:
     """Get the referral code for a user"""
     if user_exists(wallet_address):
         with connect(connection_string) as commands:
-            referral_code = commands.query_single(
+            # Modified to get the most recent referral code
+            referral_codes = commands.query(
                 """
                 SELECT referral_code 
                 FROM Users INNER JOIN Referrals ON Users.user_id = Referrals.user_id 
-                WHERE wallet_address = ?wallet_address?
+                WHERE wallet_address = ?wallet_address? AND is_active = TRUE
+                ORDER BY Referrals.created_at DESC
                 """,
                 param={"wallet_address": wallet_address})
-        return referral_code["referral_code"]
+            
+            if not referral_codes:
+                raise ValueError("No active referral codes found for this wallet")
+            
+            # Return the most recent referral code
+            return referral_codes[0]["referral_code"]
+    else:
+        raise ValueError(f"User with wallet address {wallet_address} does not exist")
 
 
 def store_referral_code(referral_code, user_id: int):
@@ -84,3 +93,20 @@ def delete_referral_token(code):
         commands.execute(
             "DELETE FROM Referrals WHERE referral_code = ?referral_code?",
             param={"referral_code": code})
+        
+def fetch_all_referral_codes(wallet_address: str) -> list:
+    """Get all referral codes for a user"""
+    if user_exists(wallet_address):
+        with connect(connection_string) as commands:
+            referral_codes = commands.query(
+                """
+                SELECT referral_code, created_at, is_active, clan_id 
+                FROM Users INNER JOIN Referrals ON Users.user_id = Referrals.user_id 
+                WHERE wallet_address = ?wallet_address?
+                ORDER BY Referrals.created_at DESC
+                """,
+                param={"wallet_address": wallet_address})
+            
+            return referral_codes
+    else:
+        raise ValueError(f"User with wallet address {wallet_address} does not exist")
