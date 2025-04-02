@@ -5,63 +5,82 @@ from database.connection_string import connection_string
 from models.user_models import User
 
 
-def fetch_user_by_email(email: str) -> int:
+def fetch_user_by_wallet(wallet_address: str) -> int:
+    """Get user_id from wallet address"""
     with connect(connection_string) as commands:
         user_id_dict = commands.query_single(
-            "select user_id from users where email = ?email?", param={"email": email})
+            "SELECT user_id FROM Users WHERE wallet_address = ?wallet_address?", 
+            param={"wallet_address": wallet_address})
         return user_id_dict["user_id"]
 
 
-def insert_user(registration_details: User):
+def insert_user(user_details: User):
+    """Insert a new user into the database"""
     with connect(connection_string) as commands:
-        commands.execute("insert into users(first_name, last_name, phone, email, token, created_at, updated_at) "
-                         "values(?first_name?, ?last_name?, ?phone?, ?email?, ?token?, ?created_at?, ?updated_at?)",
-                         param={"first_name": registration_details.first_name, "last_name":
-                                registration_details.last_name, "phone": registration_details.phone,
-                                "email": registration_details.email, "token": registration_details.token,
-                                "created_at": registration_details.created_at, "updated_at":
-                                    registration_details.updated_at})
+        commands.execute(
+            """
+            INSERT INTO Users(wallet_address, username, profile_image, created_at, updated_at) 
+            VALUES(?wallet_address?, ?username?, ?profile_image?, ?created_at?, ?updated_at?)
+            """,
+            param={
+                "wallet_address": user_details.wallet_address,
+                "username": user_details.username,
+                "profile_image": user_details.profile_image,
+                "created_at": user_details.created_at,
+                "updated_at": user_details.updated_at
+            })
 
 
-def user_exists(email: str) -> bool:
+def user_exists(wallet_address: str) -> bool:
+    """Check if a user with the given wallet address exists"""
     with connect(connection_string) as commands:
-        token = commands.query(
-            "select token from users where email = ?email?", param={"email": email})
-
-        print(token)
-        if token == []:
-            return False
-        return True
+        result = commands.query(
+            "SELECT user_id FROM Users WHERE wallet_address = ?wallet_address?", 
+            param={"wallet_address": wallet_address})
+        return len(result) > 0
 
 
-def fetch_referral_code(email: str) -> str:
-    if user_exists(email):
+def fetch_referral_code(wallet_address: str) -> str:
+    """Get the referral code for a user"""
+    if user_exists(wallet_address):
         with connect(connection_string) as commands:
             referral_code = commands.query_single(
-                "select referral_code from Users inner join Referrals on Users.user_id= referrals.user_id where email "
-                "= ?email?",
-                param={"email": email})
+                """
+                SELECT referral_code 
+                FROM Users INNER JOIN Referrals ON Users.user_id = Referrals.user_id 
+                WHERE wallet_address = ?wallet_address?
+                """,
+                param={"wallet_address": wallet_address})
         return referral_code["referral_code"]
 
 
 def store_referral_code(referral_code, user_id: int):
+    """Store a referral code for a user"""
     with connect(connection_string) as commands:
         commands.execute(
-            "insert into Referrals ( referral_code, created_at, user_id, is_active) values(?referral_code?, "
-            "?created_at?, ?user_id?, ?is_active?)",
-            param={"referral_code": referral_code, "created_at": datetime.datetime.now(), "user_id": user_id,
-                   "is_active": True})
+            """
+            INSERT INTO Referrals (referral_code, created_at, user_id, is_active) 
+            VALUES(?referral_code?, ?created_at?, ?user_id?, ?is_active?)
+            """,
+            param={
+                "referral_code": referral_code, 
+                "created_at": datetime.datetime.now(), 
+                "user_id": user_id,
+                "is_active": True
+            })
 
 
 def inactivate_referral_token(code):
+    """Mark a referral code as inactive"""
     with connect(connection_string) as commands:
         commands.execute(
-            "update Referrals set is_active = ?is_active? where referral_code = ?referral_code?",
+            "UPDATE Referrals SET is_active = ?is_active? WHERE referral_code = ?referral_code?",
             param={"is_active": False, "referral_code": code})
 
 
 def delete_referral_token(code):
+    """Delete a referral code"""
     with connect(connection_string) as commands:
         commands.execute(
-            "delete from Referrals where referral_code = ?referral_code?",
+            "DELETE FROM Referrals WHERE referral_code = ?referral_code?",
             param={"referral_code": code})

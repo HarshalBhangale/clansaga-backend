@@ -1,31 +1,24 @@
 import secrets
 import threading
+from datetime import datetime
 from pydapper import connect
 from database.connection_string import connection_string
-from database.database_queries import store_referral_code, inactivate_referral_token, delete_referral_token
-from datetime import datetime
 from services.referral_system import expire_referral_code
-stale_time = 60 * 60 * 24 * 7  # Increase stale time to 7 days for clan invites
+
+stale_time = 60 * 60 * 24 * 7  # 7 days for clan invites
 
 
-def generate_clan_invite_code(clan_id: int) -> str:
+def generate_clan_invite_code(clan_id: int, leader_id: int) -> str:
     """Generate an invite code for a clan and store it in the database"""
     code = secrets.token_urlsafe(8)
-    store_clan_invite_code(code, clan_id)
-    expire_referral_code(code) 
+    store_clan_invite_code(code, clan_id, leader_id)
+    expire_referral_code(code)
     return code
 
 
-def store_clan_invite_code(code: str, clan_id: int):
+def store_clan_invite_code(code: str, clan_id: int, leader_id: int):
     """Store an invite code for a clan in the database"""
     with connect(connection_string) as commands:
-        # First get the leader_id
-        leader_id = commands.query_single(
-            "SELECT clan_leader_id FROM Clans WHERE clan_id = ?clan_id?",
-            param={"clan_id": clan_id}
-        )["clan_leader_id"]
-        
-        # Then insert the referral code
         commands.execute(
             """
             INSERT INTO Referrals (referral_code, created_at, is_active, user_id, clan_id)
@@ -51,7 +44,7 @@ def is_active_clan_invite(code: str) -> bool:
             """,
             param={"referral_code": code}
         )
-        return result and result["is_active"]
+        return result and result.get("is_active")
 
 
 def redeem_clan_invite(code: str, user_id: int):
@@ -69,6 +62,3 @@ def redeem_clan_invite(code: str, user_id: int):
                 "user_id": user_id
             }
         )
-        
-        # Optional: invalidate the code after use
-        # inactivate_referral_token(code)

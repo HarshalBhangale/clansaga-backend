@@ -3,7 +3,7 @@ from datetime import datetime
 from models.user_models import Clan, ClanCreation, JoinClan
 from database.database_queries import (
     user_exists, 
-    fetch_user_by_email
+    fetch_user_by_wallet
 )
 from database.clan_database_queries import (
     is_user_in_clan, 
@@ -12,20 +12,22 @@ from database.clan_database_queries import (
     join_clan_by_id,
     get_available_clans,
     get_user_clan,
-    get_clan_id_by_invite_code
+    get_clan_id_by_invite_code,
+    get_clan_members
 )
 from services.referral_system import is_active_referral_code
 from services.clan_referral_system import generate_clan_invite_code
-from services.referral_system import expire_referral_code
+
 router = APIRouter()
 
 
 @router.post("/create_clan")
 async def create_clan(clan_details: ClanCreation):
-    if not user_exists(clan_details.creator_email):
+    """Create a new clan with the user as the leader"""
+    if not user_exists(clan_details.creator_wallet):
         raise HTTPException(status_code=404, detail="User not found")
     
-    user_id = fetch_user_by_email(clan_details.creator_email)
+    user_id = fetch_user_by_wallet(clan_details.creator_wallet)
     
     if is_user_in_clan(user_id):
         raise HTTPException(status_code=400, detail="User already belongs to a clan")
@@ -39,7 +41,7 @@ async def create_clan(clan_details: ClanCreation):
     )
     
     clan_id = insert_clan(clan)
-    invite_code = generate_clan_invite_code(clan_id)
+    invite_code = generate_clan_invite_code(clan_id, user_id)
     
     # Update user to be part of the clan
     join_clan_by_id(user_id, clan_id)
@@ -53,10 +55,11 @@ async def create_clan(clan_details: ClanCreation):
 
 @router.post("/join_clan")
 async def join_clan(join_details: JoinClan):
-    if not user_exists(join_details.user_email):
+    """Join a clan using either an invite code or clan ID"""
+    if not user_exists(join_details.wallet_address):
         raise HTTPException(status_code=404, detail="User not found")
     
-    user_id = fetch_user_by_email(join_details.user_email)
+    user_id = fetch_user_by_wallet(join_details.wallet_address)
     
     if is_user_in_clan(user_id):
         raise HTTPException(status_code=400, detail="User already belongs to a clan")
@@ -87,19 +90,55 @@ async def join_clan(join_details: JoinClan):
 
 @router.get("/available_clans")
 async def available_clans():
+    """Get all available clans"""
     clans = get_available_clans()
     return {"clans": clans}
 
 
-@router.get("/user_clan/{email}")
-async def user_clan(email: str):
-    if not user_exists(email):
+@router.get("/user_clan/{wallet_address}")
+async def user_clan(wallet_address: str):
+    """Get the clan a user belongs to"""
+    if not user_exists(wallet_address):
         raise HTTPException(status_code=404, detail="User not found")
     
-    user_id = fetch_user_by_email(email)
+    user_id = fetch_user_by_wallet(wallet_address)
     clan = get_user_clan(user_id)
     
     if not clan:
         return {"message": "User is not part of any clan"}
     
     return {"clan": clan}
+
+
+@router.get("/clan/{clan_id}/members")
+async def clan_members(clan_id: int):
+    """Get all members of a clan"""
+    clan = get_clan_by_id(clan_id)
+    if not clan:
+        raise HTTPException(status_code=404, detail="Clan not found")
+    
+    members = get_clan_members(clan_id)
+    return {"members": members, "count": len(members)}
+
+
+@router.post("/generate_invite/{wallet_address}")
+async def generate_invite(wallet_address: str):
+    """Generate a new invite code for the user's clan (if they are the leader)"""
+    if not user_exists(wallet_address):
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_id = fetch_user_by_wallet(wallet_address)
+    clan = get_user_clan(user_id)
+    
+    if not clan:
+        raise HTTPException(status_code=404, detail="User is not part of any clan")
+    
+    if clan["clan_leader_id"] != user_id:
+        raise HTTPException(status_code=403, detail="Only clan leaders can generate invite codes")
+    
+    invite_code = generate_clan_invite_code(clan["clan_id"], user_id)
+    
+    return {
+        "message": "Invite code generated successfully",
+        "invite_code": invite_code
+    }
