@@ -12,7 +12,7 @@ from database.database_queries import (
     get_user_clan
 )
 from services.referral_system import generate_clan_invite_code, is_active_referral_code
-
+from database.clan_database_queries import get_clan_id_by_invite_code
 router = APIRouter()
 
 

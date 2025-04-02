@@ -3,7 +3,8 @@ import threading
 from pydapper import connect
 from database.connection_string import connection_string
 from database.database_queries import store_referral_code, inactivate_referral_token, delete_referral_token
-
+from datetime import datetime
+from referral_system import expire_referral_code 
 stale_time = 60 * 60 * 24 * 7  # Increase stale time to 7 days for clan invites
 
 
@@ -11,7 +12,7 @@ def generate_clan_invite_code(clan_id: int) -> str:
     """Generate an invite code for a clan and store it in the database"""
     code = secrets.token_urlsafe(8)
     store_clan_invite_code(code, clan_id)
-    expire_referral_code(code)
+    expire_referral_code(code) 
     return code
 
 
