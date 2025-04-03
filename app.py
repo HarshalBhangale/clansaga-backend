@@ -10,7 +10,7 @@ app = FastAPI(title="Clan Saga API")
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins in development
+    allow_origins=["https://clansaga.vercel.app", "http://localhost:3000"],  # Allows all origins in development
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 from datetime import datetime
 from models.user_models import Clan, ClanCreation, JoinClan
 from database.database_queries import (
@@ -18,8 +18,13 @@ from database.clan_database_queries import (
 from services.referral_system import is_active_referral_code
 from services.clan_referral_system import generate_clan_invite_code
 
+import time
+
 router = APIRouter()
 
+# Simple in-memory cache
+_cache = {}
+CACHE_TTL = 30  # seconds
 
 @router.post("/create_clan")
 async def create_clan(clan_details: ClanCreation):
@@ -96,8 +101,16 @@ async def available_clans():
 
 
 @router.get("/user_clan/{wallet_address}")
-async def user_clan(wallet_address: str):
-    """Get the clan a user belongs to"""
+async def user_clan(wallet_address: str, response: Response):
+    """Get the clan a user belongs to with caching"""
+    cache_key = f"clan_{wallet_address}"
+    current_time = time.time()
+    
+    # Check cache first
+    if cache_key in _cache and (current_time - _cache[cache_key]["timestamp"] < CACHE_TTL):
+        return _cache[cache_key]["data"]
+    
+    # Not in cache, process normally
     if not user_exists(wallet_address):
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -105,9 +118,19 @@ async def user_clan(wallet_address: str):
     clan = get_user_clan(user_id)
     
     if not clan:
-        return {"message": "User is not part of any clan"}
+        result = {"message": "User is not part of any clan"}
+    else:
+        result = {"clan": clan}
     
-    return {"clan": clan}
+    # Store in cache
+    _cache[cache_key] = {
+        "data": result,
+        "timestamp": current_time
+    }
+    
+    # Add cache control headers
+    response.headers["Cache-Control"] = f"max-age={CACHE_TTL}"
+    return result
 
 
 @router.get("/clan/{clan_id}/members")
