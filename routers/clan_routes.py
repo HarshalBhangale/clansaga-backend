@@ -147,21 +147,39 @@ async def clan_members(clan_id: int):
 @router.post("/generate_invite/{wallet_address}")
 async def generate_invite(wallet_address: str):
     """Generate a new invite code for the user's clan (if they are the leader)"""
-    if not user_exists(wallet_address):
-        raise HTTPException(status_code=404, detail="User not found")
+    print(f"Generating invite code for wallet address: {wallet_address}")
     
-    user_id = fetch_user_by_wallet(wallet_address)
-    clan = get_user_clan(user_id)
-    
-    if not clan:
-        raise HTTPException(status_code=404, detail="User is not part of any clan")
-    
-    if clan["clan_leader_id"] != user_id:
-        raise HTTPException(status_code=403, detail="Only clan leaders can generate invite codes")
-    
-    invite_code = generate_clan_invite_code(clan["clan_id"], user_id)
-    
-    return {
-        "message": "Invite code generated successfully",
-        "invite_code": invite_code
-    }
+    try:
+        # Check if user exists
+        if not user_exists(wallet_address):
+            print(f"User not found for wallet address: {wallet_address}")
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get user ID from wallet address
+        user_id = fetch_user_by_wallet(wallet_address)
+        print(f"Found user ID: {user_id}")
+        
+        # Get user's clan
+        clan = get_user_clan(user_id)
+        if not clan:
+            print(f"User {user_id} is not part of any clan")
+            raise HTTPException(status_code=404, detail="User is not part of any clan")
+        
+        print(f"Found clan: {clan['clan_id']} for user {user_id}")
+        
+        # Check if user is clan leader
+        if str(clan["clan_leader_id"]) != str(user_id):
+            print(f"User {user_id} is not the leader of clan {clan['clan_id']}")
+            raise HTTPException(status_code=403, detail="Only clan leaders can generate invite codes")
+        
+        # Generate new invite code
+        invite_code = generate_clan_invite_code(clan["clan_id"], user_id)
+        print(f"Generated invite code: {invite_code} for clan {clan['clan_id']}")
+        
+        return {
+            "message": "Invite code generated successfully",
+            "invite_code": invite_code
+        }
+    except Exception as e:
+        print(f"Error generating invite code: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
