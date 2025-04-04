@@ -153,7 +153,7 @@ async def generate_invite(wallet_address: str):
         # Check if user exists
         if not user_exists(wallet_address):
             print(f"User not found for wallet address: {wallet_address}")
-            raise HTTPException(status_code=404, detail="User not found")
+            return {"error": "User not found", "status": 404}
         
         # Get user ID from wallet address
         user_id = fetch_user_by_wallet(wallet_address)
@@ -163,14 +163,20 @@ async def generate_invite(wallet_address: str):
         clan = get_user_clan(user_id)
         if not clan:
             print(f"User {user_id} is not part of any clan")
-            raise HTTPException(status_code=404, detail="User is not part of any clan")
+            return {"error": "User is not part of any clan", "status": 404}
         
         print(f"Found clan: {clan['clan_id']} for user {user_id}")
         
         # Check if user is clan leader
         if str(clan["clan_leader_id"]) != str(user_id):
             print(f"User {user_id} is not the leader of clan {clan['clan_id']}")
-            raise HTTPException(status_code=403, detail="Only clan leaders can generate invite codes")
+            return {
+                "error": "Only clan leaders can generate invite codes",
+                "status": 403,
+                "is_clan_leader": False,
+                "clan_name": clan.get("clan_name", "Unknown clan"),
+                "clan_id": clan.get("clan_id")
+            }
         
         # Generate new invite code
         invite_code = generate_clan_invite_code(clan["clan_id"], user_id)
@@ -178,8 +184,17 @@ async def generate_invite(wallet_address: str):
         
         return {
             "message": "Invite code generated successfully",
-            "invite_code": invite_code
+            "invite_code": invite_code,
+            "status": 200,
+            "clan_id": clan["clan_id"],
+            "clan_name": clan.get("clan_name", "Unknown clan")
         }
     except Exception as e:
         print(f"Error generating invite code: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        # Only create a 500 error for unexpected exceptions, not for normal validation failures
+        if isinstance(e, HTTPException):
+            # Re-raise HTTP exceptions as-is
+            raise e
+        else:
+            # For other unexpected errors
+            raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")

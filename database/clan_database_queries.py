@@ -91,22 +91,35 @@ def get_available_clans():
         return clans
 
 
+
 def get_user_clan(user_id: int):
     """Get the clan a user belongs to"""
-    with connect(connection_string) as commands:
-        clan = commands.query_single(
-            """
-            SELECT c.*, u.username as leader_name, u.wallet_address as leader_wallet,
-                  (SELECT COUNT(*) FROM Users WHERE clan_id = c.clan_id) as member_count
-            FROM Clans c
-            JOIN Users u ON c.clan_leader_id = u.user_id
-            JOIN Users u2 ON u2.clan_id = c.clan_id
-            WHERE u2.user_id = ?user_id?
-            """,
-            param={"user_id": user_id}
-        )
-        return clan
-
+    try:
+        with connect(connection_string) as commands:
+            # First check if user is in a clan
+            user_check = commands.query_single(
+                "SELECT clan_id FROM Users WHERE user_id = ?user_id?",
+                param={"user_id": user_id}
+            )
+            
+            if not user_check or user_check.get("clan_id") is None:
+                return None
+                
+            # Now get the clan details
+            clan = commands.query_single(
+                """
+                SELECT c.*, u.username as leader_name, u.wallet_address as leader_wallet,
+                    (SELECT COUNT(*) FROM Users WHERE clan_id = c.clan_id) as member_count
+                FROM Clans c
+                JOIN Users u ON c.clan_leader_id = u.user_id
+                WHERE c.clan_id = ?clan_id?
+                """,
+                param={"clan_id": user_check["clan_id"]}
+            )
+            return clan
+    except Exception as e:
+        print(f"Error in get_user_clan: {str(e)}")
+        return None
 
 def get_clan_members(clan_id: int):
     """Get all members of a clan"""

@@ -7,11 +7,15 @@ from models.user_models import User
 
 def fetch_user_by_wallet(wallet_address: str) -> int:
     """Get user_id from wallet address"""
-    with connect(connection_string) as commands:
-        user_id_dict = commands.query_single(
-            "SELECT user_id FROM Users WHERE wallet_address = ?wallet_address?", 
-            param={"wallet_address": wallet_address})
-        return user_id_dict["user_id"]
+    try:
+        with connect(connection_string) as commands:
+            user_id_dict = commands.query_single(
+                "SELECT user_id FROM Users WHERE wallet_address = ?wallet_address?", 
+                param={"wallet_address": wallet_address})
+            return user_id_dict["user_id"]
+    except Exception as e:
+        print(f"Error fetching user by wallet: {str(e)}")
+        raise ValueError(f"User with wallet address {wallet_address} not found")
 
 
 def insert_user(user_details: User):
@@ -110,3 +114,7 @@ def fetch_all_referral_codes(wallet_address: str) -> list:
             return referral_codes
     else:
         raise ValueError(f"User with wallet address {wallet_address} does not exist")
+
+
+
+

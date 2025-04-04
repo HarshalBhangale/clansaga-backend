@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Body
 from pydantic import BaseModel
+from typing import Optional
 from services.referral_system import is_active_referral_code, redeem_referral
 from database.database_queries import fetch_referral_code, fetch_all_referral_codes
 
@@ -11,34 +12,44 @@ class ReferralCodeRequest(BaseModel):
 class WalletAddressRequest(BaseModel):
     wallet_address: str
 
+class EmailRequest(BaseModel):
+    email: str
+
+# Endpoint from referral_routes.py - Updated to support both Body and path parameter
 @router.post("/check_referral_code_validity")
-async def check_referral_code_validity(request_data: ReferralCodeRequest):
-    """Check if a referral code is valid"""
+async def check_referral_code_validity(request_data: Optional[ReferralCodeRequest] = None, referral_code: Optional[str] = None):
+    """Check if a referral code is valid - supports both body and path parameter"""
     try:
-        return is_active_referral_code(request_data.referral_code)
+        # Get code from either body or path parameter
+        code = None
+        if request_data and request_data.referral_code:
+            code = request_data.referral_code
+        elif referral_code:
+            code = referral_code
+        else:
+            raise HTTPException(status_code=400, detail="Referral code is required")
+            
+        return is_active_referral_code(code)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Referral code is not valid: {str(e)}")
 
-@router.post("/get_referral_codes")
-async def get_referral_codes(request_data: WalletAddressRequest):
-    """Get all referral codes for a user"""
-    try:
-        codes = fetch_all_referral_codes(request_data.wallet_address)
-        return {"referral_codes": codes}
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=f"No referral codes found: {str(e)}")
 
+# Endpoint from referral_routes.py - Updated to support both Body and path parameter
 @router.post("/redeem_referral_code")
-async def redeem_referral_code(request_data: ReferralCodeRequest):
-    """Redeem a referral code"""
+async def redeem_referral_code(request_data: Optional[ReferralCodeRequest] = None, referral_code: Optional[str] = None):
+    """Redeem a referral code - supports both body and path parameter"""
     try:
-        redeem_referral(request_data.referral_code)
+        # Get code from either body or path parameter
+        code = None
+        if request_data and request_data.referral_code:
+            code = request_data.referral_code
+        elif referral_code:
+            code = referral_code
+        else:
+            raise HTTPException(status_code=400, detail="Referral code is required")
+            
+        redeem_referral(code)
         return {"message": "Referral code redeemed successfully"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to redeem: {str(e)}")
 
-# Add a simple test endpoint for debugging
-@router.get("/test")
-async def test_endpoint():
-    """Simple test endpoint for debugging"""
-    return {"status": "working"}
