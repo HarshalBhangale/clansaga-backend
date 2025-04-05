@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Response, Body
 from datetime import datetime
 from models.user_models import Clan, ClanCreation, JoinClan
 from database.database_queries import (
@@ -13,11 +13,13 @@ from database.clan_database_queries import (
     get_available_clans,
     get_user_clan,
     get_clan_id_by_invite_code,
-    get_clan_members
+    get_clan_members,
+    remove_user_from_clan,
+    is_clan_leader,
 )
 from services.referral_system import is_active_referral_code
 from services.clan_referral_system import generate_clan_invite_code
-
+from pydantic import BaseModel
 import time
 
 router = APIRouter()
@@ -25,6 +27,8 @@ router = APIRouter()
 # Simple in-memory cache
 _cache = {}
 CACHE_TTL = 30  # seconds
+class LeaveClanRequest(BaseModel):
+    wallet_address: str
 
 @router.post("/create_clan")
 async def create_clan(clan_details: ClanCreation):
@@ -198,3 +202,75 @@ async def generate_invite(wallet_address: str):
         else:
             # For other unexpected errors
             raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
+        
+
+@router.post("/leave_clan")
+async def leave_clan(request: LeaveClanRequest):
+    """Allow a user to leave their current clan"""
+    if not user_exists(request.wallet_address):
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_id = fetch_user_by_wallet(request.wallet_address)
+    clan = get_user_clan(user_id)
+    
+    if not clan:
+        raise HTTPException(status_code=400, detail="User is not part of any clan")
+    
+    # Check if user is the clan leader
+    if clan["clan_leader_id"] == user_id:
+        raise HTTPException(status_code=400, detail="Clan leader cannot leave the clan. You must transfer leadership or disband the clan.")
+    
+    # Remove user from clan
+    remove_user_from_clan(user_id)
+    
+    # Clear user clan cache
+    cache_key = f"clan_{request.wallet_address}"
+    if cache_key in _cache:
+        del _cache[cache_key]
+    
+    return {"message": "Successfully left the clan"}
+
+@router.post("/remove_member")
+async def remove_clan_member(leader_wallet: str = Body(...), member_wallet: str = Body(...)):
+    """Allow a clan leader to remove a member from their clan"""
+    # Verify both users exist
+    if not user_exists(leader_wallet):
+        raise HTTPException(status_code=404, detail="Leader not found")
+    
+    if not user_exists(member_wallet):
+        raise HTTPException(status_code=404, detail="Member not found")
+    
+    leader_id = fetch_user_by_wallet(leader_wallet)
+    member_id = fetch_user_by_wallet(member_wallet)
+    
+    # Get clan info
+    leader_clan = get_user_clan(leader_id)
+    member_clan = get_user_clan(member_id)
+    
+    if not leader_clan:
+        raise HTTPException(status_code=400, detail="Leader is not part of any clan")
+    
+    if not member_clan:
+        raise HTTPException(status_code=400, detail="Member is not part of any clan")
+    
+    # Verify they're in the same clan
+    if leader_clan["clan_id"] != member_clan["clan_id"]:
+        raise HTTPException(status_code=400, detail="Leader and member are not in the same clan")
+    
+    # Verify the leader is actually the clan leader
+    if leader_clan["clan_leader_id"] != leader_id:
+        raise HTTPException(status_code=403, detail="Only clan leaders can remove members")
+    
+    # Cannot remove yourself
+    if leader_id == member_id:
+        raise HTTPException(status_code=400, detail="Leader cannot remove themselves from the clan")
+    
+    # Remove member from clan
+    remove_user_from_clan(member_id)
+    
+    # Clear member's clan cache
+    cache_key = f"clan_{member_wallet}"
+    if cache_key in _cache:
+        del _cache[cache_key]
+    
+    return {"message": "Successfully removed member from clan"}

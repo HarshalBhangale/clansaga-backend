@@ -133,3 +133,23 @@ def get_clan_members(clan_id: int):
             param={"clan_id": clan_id}
         )
         return members
+
+def remove_user_from_clan(user_id: int):
+    """Remove a user from their clan by setting clan_id to NULL"""
+    with connect(connection_string) as commands:
+        commands.execute(
+            "UPDATE Users SET clan_id = NULL, updated_at = ?updated_at? WHERE user_id = ?user_id?",
+            param={
+                "updated_at": datetime.now(),
+                "user_id": user_id
+            }
+        )
+
+def is_clan_leader(user_id: int, clan_id: int) -> bool:
+    """Check if a user is the leader of a specific clan"""
+    with connect(connection_string) as commands:
+        clan = commands.query_single(
+            "SELECT clan_leader_id FROM Clans WHERE clan_id = ?clan_id?",
+            param={"clan_id": clan_id}
+        )
+        return clan and str(clan["clan_leader_id"]) == str(user_id)
